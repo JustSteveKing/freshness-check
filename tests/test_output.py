@@ -4,7 +4,7 @@ import pytest
 
 from freshness_check.cli import main
 from freshness_check.model import ModelAnswer
-from freshness_check.output import render_html, rich_text, to_json
+from freshness_check.output import render_html, rich_text, to_json, undash
 from freshness_check.research import Citation, ResearchResult
 from freshness_check.runner import Credits, QuestionResult, RunInfo, RunResult
 
@@ -200,3 +200,34 @@ def test_json_matches_report_data():
     assert '"minimum_estimate": 750' in data
     assert '"actual": null' in data
     assert '"possibly_truncated": true' in data
+
+
+EM, EN = chr(0x2014), chr(0x2013)
+
+
+@pytest.mark.parametrize(
+    ("raw", "clean"),
+    [
+        (f"Node.js {EM} Node.js Releases", "Node.js, Node.js Releases"),
+        (f"fast{EM}really fast", "fast, really fast"),
+        (f"every 4{EN}6 months", "every 4-6 months"),
+        (f"Laravel 13.x {EN} The clean stack", "Laravel 13.x, The clean stack"),
+        (f"Sources:\n{EM} one\n  {EN} two", "Sources:\n- one\n  - two"),
+        ("no dashes - here", "no dashes - here"),
+    ],
+)
+def test_undash(raw, clean):
+    assert undash(raw) == clean
+
+
+def test_third_party_dashes_do_not_reach_the_report():
+    run = fixed_run()
+    first = run.questions[0]
+    first.research.citations[0].title = f"Node.js {EM} Node.js Releases"
+    first.model_alone.text = f"Every 4{EN}6 months {EM} roughly."
+    first.research.report = f"Report {EM} with dashes."
+    html = render_html(run)
+    assert EM not in html
+    assert EN not in html
+    assert "Node.js, Node.js Releases" in html
+    assert "Every 4-6 months, roughly." in html

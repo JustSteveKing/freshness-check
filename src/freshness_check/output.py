@@ -19,6 +19,13 @@ BOLD_PATTERN = re.compile(r"\*\*(.+?)\*\*")
 CODE_PATTERN = re.compile(r"`([^`\n]+)`")
 TRAILING_PUNCTUATION = ".,;:!?)]}*"
 
+# Em dash and en dash. Model answers, research reports and page titles often
+# use them as punctuation, and the report copy avoids them.
+DASHES = "\u2014\u2013"
+LINE_START_DASH = re.compile(rf"^([ \t]*)[{DASHES}][ \t]*", re.MULTILINE)
+RANGE_DASH = re.compile(r"(?<=\w)\u2013(?=\w)")
+PUNCTUATION_DASH = re.compile(rf"[ \t]*[{DASHES}][ \t]*")
+
 
 def json_path_for(html_path: Path) -> Path:
     return html_path.with_suffix(".json")
@@ -48,13 +55,21 @@ def link(match: re.Match[str]) -> str:
     return f'<a href="{url}" rel="noopener noreferrer">{url}</a>{trailing}'
 
 
+def undash(value: str | None) -> str:
+    """Replace em and en dashes: list markers and ranges become hyphens, and
+    dashes used as punctuation become commas."""
+    text = LINE_START_DASH.sub(r"\1- ", value or "")
+    text = RANGE_DASH.sub("-", text)
+    return PUNCTUATION_DASH.sub(", ", text)
+
+
 def rich_text(value: str | None) -> Markup:
     """Escape model output, then render **bold**, `code` and bare links.
 
     Answers show with their line breaks kept. Everything else stays plain text,
     so nothing the model writes can add markup to the report.
     """
-    text = str(escape(value or ""))
+    text = str(escape(undash(value)))
     text = CODE_PATTERN.sub(r"<code>\1</code>", text)
     text = BOLD_PATTERN.sub(r"<strong>\1</strong>", text)
     text = URL_PATTERN.sub(link, text)
@@ -84,6 +99,7 @@ def environment() -> Environment:
     )
     env.filters["rich_text"] = rich_text
     env.filters["is_web_url"] = is_web_url
+    env.filters["undash"] = undash
     env.globals["secs"] = secs
     env.globals["tokens"] = tokens
     return env

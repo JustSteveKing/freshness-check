@@ -2,7 +2,7 @@
 {% if a is none %}
 <p class="failed"><strong>No answer</strong>This path did not run.</p>
 {% elif not a.ok %}
-<p class="failed"><strong>Failed</strong>{{ a.error }}</p>
+<p class="failed"><strong>Failed</strong>{{ a.error | undash }}</p>
 <div class="stats"><span>{{ secs(a.seconds) }}</span><span>{{ tokens(a) }}</span></div>
 {% else %}
 <div class="answer">{{ a.text | rich_text }}</div>
@@ -148,15 +148,15 @@ footer pre {
   </dl>
   <p class="credits">Tabstack credits: {% if info.credits.actual is not none %}{{ "{:,}".format(info.credits.actual) }} used.{% else %}minimum estimate {{ "{:,}".format(info.credits.minimum_estimate) }} ({{ info.credits.per_action }} per action, {{ info.question_count }} {{ "question" if info.question_count == 1 else "questions" }}). Research can run more than one action per question, and the API does not report actual usage.{% endif %}</p>
   {% if info.stopped_early %}
-  <p class="banner"><strong>The run stopped early.</strong> {{ info.stopped_early }}</p>
+  <p class="banner"><strong>The run stopped early.</strong> {{ info.stopped_early | undash }}</p>
   {% endif %}
 </header>
 
 {% for q in questions %}
 <section class="card">
   <div class="card-head">
-    <h2>{{ q.question }}</h2>
-    {% if q.expected %}<p class="expected">Expected answer: <strong>{{ q.expected }}</strong></p>{% endif %}
+    <h2>{{ q.question | undash }}</h2>
+    {% if q.expected %}<p class="expected">Expected answer: <strong>{{ q.expected | undash }}</strong></p>{% endif %}
   </div>
   <div class="paths">
     <div class="path alone">
@@ -166,7 +166,7 @@ footer pre {
     <div class="path research">
       <h3>Model with Research</h3>
       {% if not q.research.ok %}
-      <p class="failed"><strong>Research failed</strong>{{ q.research.error }}</p>
+      <p class="failed"><strong>Research failed</strong>{{ q.research.error | undash }}</p>
       <div class="stats"><span>Research time {{ secs(q.research.seconds) }}</span></div>
       {% else %}
       {{ answer_block(q.with_research) }}
@@ -175,7 +175,7 @@ footer pre {
         {% if q.research.citations %}
         <ol>
           {% for c in q.research.citations %}
-          <li>{% if c.url | is_web_url %}<a href="{{ c.url }}" rel="noopener noreferrer">{{ c.title or c.url }}</a>{% else %}{{ c.title or c.url }}{% endif %}</li>
+          <li>{% if c.url | is_web_url %}<a href="{{ c.url }}" rel="noopener noreferrer">{{ c.title | undash if c.title else c.url }}</a>{% else %}{{ c.title | undash if c.title else c.url }}{% endif %}</li>
           {% endfor %}
         </ol>
         {% else %}
