@@ -1,0 +1,30 @@
+event: start
+data: {"message": "Starting research", "timestamp": 1792000000000}
+
+event: planning:start
+data: {"message": "Planning research", "timestamp": 1792000000100, "hasPrefetchedContext": false}
+
+event: planning:end
+data: {"message": "Plan ready", "timestamp": 1792000002000, "complexity": "simple", "objective": "Find the latest stable Python release", "plan": "Search python.org release pages", "queries": ["latest stable python release"], "questions": ["What is the latest stable Python release?"]}
+
+event: iteration:start
+data: {"message": "Iteration 1 of 1", "timestamp": 1792000002100, "iteration": 1, "maxIterations": 1, "queries": ["latest stable python release"]}
+
+event: searching:start
+data: {"message": "Searching", "timestamp": 1792000002200, "iteration": 1, "queries": ["latest stable python release"]}
+
+event: searching:end
+data: {"message": "Found 8 URLs", "timestamp": 1792000006000, "iteration": 1, "urlsFound": 8, "urlsNew": 8}
+
+event: iteration:end
+data: {"message": "Iteration 1 done", "timestamp": 1792000006100, "iteration": 1, "isLast": true, "stopReason": "max_iterations"}
+
+event: writing:start
+data: {"message": "Writing report", "timestamp": 1792000006200, "attempt": 1, "maxAttempts": 1, "isRevision": false}
+
+event: writing:end
+data: {"message": "Report written", "timestamp": 1792000012000, "attempt": 1}
+
+event: complete
+data: {"message": "Research complete", "timestamp": 1792000012100, "report": "The latest stable release of Python is 3.14.0 [1].\n\nIt was released in October 2025 [2].", "metadata": {"mode": "fast", "prompt": "What is the latest stable release of Python?", "researchObjective": "Find the latest stable Python release", "researchQuestions": ["What is the latest stable Python release?"], "researchPlan": "Search python.org release pages", "queryComplexity": "simple", "executedQueries": [["latest stable python release"]], "totalPagesAnalyzed": 8, "citedPages": [{"id": "1", "url": "https://www.python.org/downloads/", "title": "Download Python", "claims": [], "sourceQueries": ["latest stable python release"]}, {"id": "2", "url": "https://docs.python.org/3/whatsnew/", "claims": [], "sourceQueries": ["latest stable python release"]}]}}
+

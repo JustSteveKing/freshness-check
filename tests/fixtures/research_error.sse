@@ -1,0 +1,18 @@
+event: start
+data: {"message": "Starting research", "timestamp": 1792000000000}
+
+event: planning:start
+data: {"message": "Planning research", "timestamp": 1792000000100, "hasPrefetchedContext": false}
+
+event: planning:end
+data: {"message": "Plan ready", "timestamp": 1792000002000, "complexity": "simple", "objective": "o", "plan": "p", "queries": ["q"], "questions": ["q?"]}
+
+event: iteration:start
+data: {"message": "Iteration 1 of 1", "timestamp": 1792000002100, "iteration": 1, "maxIterations": 1, "queries": ["q"]}
+
+event: searching:start
+data: {"message": "Searching", "timestamp": 1792000002200, "iteration": 1, "queries": ["q"]}
+
+event: error
+data: {"message": "Research failed", "timestamp": 1792000004000, "activity": "searching", "iteration": 1, "error": {"name": "SearchProviderError", "message": "All search providers failed"}}
+
