@@ -143,3 +143,16 @@ def test_answer_summary_marks_estimates():
     estimated = ModelAnswer("A", None, 1.25, 40, 10, True, 10)
     assert answer_summary("Model alone", estimated) == ("  Model alone: 1.2s, 10 input tokens est.")
     assert "skipped" in answer_summary("Model with Research", None)
+
+
+def test_research_summary_uses_singular_for_one():
+    from rich.console import Console
+
+    from freshness_check.progress import RichHooks
+    from freshness_check.research import Citation
+
+    console = Console(record=True, width=200)
+    hooks = RichHooks(console)
+    research = ResearchResult("R", [Citation("https://a.example")], pages_analyzed=1, seconds=8.0)
+    hooks.question_finished(QuestionResult("Q?", None, ok_answer(), research, ok_answer()))
+    assert "Research: 8.0s, 1 source, 1 page analysed" in console.export_text()

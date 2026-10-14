@@ -50,6 +50,10 @@ def describe_event(event: Any) -> str | None:
     return None
 
 
+def plural(count: int, noun: str) -> str:
+    return f"{count} {noun}" if count == 1 else f"{count} {noun}s"
+
+
 def answer_summary(label: str, answer: ModelAnswer | None) -> str:
     if answer is None:
         return f"  {label}: [dim]skipped[/dim]"
@@ -102,10 +106,10 @@ class RichHooks(Hooks):
         self.console.print(answer_summary("Model alone", result.model_alone))
         research = result.research
         if research.ok:
-            pages = f", {research.pages_analyzed} pages analysed" if research.pages_analyzed else ""
-            self.console.print(
-                f"  Research: {research.seconds:.1f}s, {len(research.citations)} sources{pages}"
-            )
+            parts = [f"{research.seconds:.1f}s", plural(len(research.citations), "source")]
+            if research.pages_analyzed is not None:
+                parts.append(f"{plural(research.pages_analyzed, 'page')} analysed")
+            self.console.print(f"  Research: {', '.join(parts)}")
         else:
             self.console.print(f"  Research: [red]failed[/red] ({escape(research.error or '')})")
         self.console.print(answer_summary("Model with Research", result.with_research))
