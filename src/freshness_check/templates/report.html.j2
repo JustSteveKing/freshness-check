@@ -1,0 +1,210 @@
+{%- macro answer_block(a) -%}
+{% if a is none %}
+<p class="failed"><strong>No answer</strong>This path did not run.</p>
+{% elif not a.ok %}
+<p class="failed"><strong>Failed</strong>{{ a.error }}</p>
+<div class="stats"><span>{{ secs(a.seconds) }}</span><span>{{ tokens(a) }}</span></div>
+{% else %}
+<div class="answer">{{ a.text | rich_text }}</div>
+<div class="stats"><span>{{ secs(a.seconds) }}</span><span>{{ tokens(a) }}</span></div>
+{% endif %}
+{% if a is not none and a.possibly_truncated %}
+<p class="note">The runtime counted {{ "{:,}".format(a.input_tokens) }} input tokens, but the prompt is about {{ "{:,}".format(a.estimated_input_tokens) }}. It may have cut the prompt to fit its context window.</p>
+{% endif %}
+{% if a is not none and a.over_context_window %}
+<p class="note">This prompt is larger than the context window you set. It was sent in full.</p>
+{% endif %}
+{%- endmacro -%}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>freshness-check: {{ info.model }}, {{ run_date }}</title>
+<style>
+:root {
+  --bg: #f6f5f2;
+  --card: #ffffff;
+  --ink: #1d1d1b;
+  --muted: #62605a;
+  --line: #e2dfd8;
+  --accent: #2f5d50;
+  --soft: #eef2ef;
+  --fail: #9c2f22;
+  --fail-bg: #fbeeec;
+  --note: #7a5a00;
+  --note-bg: #fbf4dd;
+  --code: #efede8;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #151614;
+    --card: #1e201d;
+    --ink: #e9e7e1;
+    --muted: #a3a097;
+    --line: #34362f;
+    --accent: #8cc4b1;
+    --soft: #222a26;
+    --fail: #f0a397;
+    --fail-bg: #3a201c;
+    --note: #e8c96a;
+    --note-bg: #332b14;
+    --code: #2a2c27;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+main { max-width: 1080px; margin: 0 auto; padding: 32px 20px 48px; }
+a { color: var(--accent); overflow-wrap: anywhere; }
+h1 { font-size: 1.6rem; line-height: 1.25; margin: 0 0 6px; letter-spacing: -0.01em; }
+h2 { font-size: 1.15rem; line-height: 1.35; margin: 0; }
+h3 {
+  font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--muted); margin: 0 0 10px;
+}
+.intro { color: var(--muted); margin: 0 0 18px; max-width: 70ch; }
+.meta {
+  display: flex; flex-wrap: wrap;
+  gap: 1px; background: var(--line); border: 1px solid var(--line);
+  border-radius: 10px; overflow: hidden; margin: 0 0 12px;
+}
+.meta div { flex: 1 1 150px; background: var(--card); padding: 10px 14px; }
+.meta dt { font-size: 0.75rem; color: var(--muted); }
+.meta dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.credits { font-size: 0.9rem; color: var(--muted); margin: 0 0 28px; }
+.banner {
+  background: var(--fail-bg); color: var(--fail); border-radius: 10px;
+  padding: 12px 16px; margin: 0 0 24px;
+}
+.card {
+  background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+  margin: 0 0 22px; overflow: hidden;
+}
+.card-head { padding: 16px 20px; border-bottom: 1px solid var(--line); }
+.expected { margin: 6px 0 0; font-size: 0.92rem; color: var(--muted); }
+.expected strong { color: var(--ink); }
+.paths { display: grid; grid-template-columns: 1fr; }
+.path { padding: 16px 20px; min-width: 0; }
+.path + .path { border-top: 1px solid var(--line); }
+.path.research { background: var(--soft); }
+@media (min-width: 760px) {
+  .paths { grid-template-columns: 1fr 1fr; }
+  .path + .path { border-top: 0; border-left: 1px solid var(--line); }
+}
+.answer { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
+.answer code, .report code {
+  background: var(--code); padding: 1px 5px; border-radius: 4px; font-size: 0.9em;
+}
+.stats {
+  display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 12px 0 0;
+  font-size: 0.85rem; color: var(--muted);
+}
+.failed {
+  background: var(--fail-bg); color: var(--fail); border-radius: 8px;
+  padding: 10px 12px; margin: 0;
+}
+.failed strong { display: block; }
+.note {
+  background: var(--note-bg); color: var(--note); border-radius: 8px;
+  padding: 8px 12px; margin: 10px 0 0; font-size: 0.85rem;
+}
+.sources { margin: 14px 0 0; font-size: 0.9rem; }
+.sources ol { margin: 4px 0 0; padding-left: 1.4em; }
+.sources li { margin: 2px 0; }
+details { margin: 12px 0 0; font-size: 0.9rem; }
+summary { cursor: pointer; color: var(--accent); }
+.report {
+  white-space: pre-wrap; overflow-wrap: anywhere; margin: 8px 0 0;
+  padding: 10px 12px; border-left: 3px solid var(--line); color: var(--muted);
+}
+footer { border-top: 1px solid var(--line); margin-top: 36px; padding-top: 20px; font-size: 0.92rem; }
+footer pre {
+  background: var(--card); border: 1px solid var(--line); border-radius: 8px;
+  padding: 10px 12px; white-space: pre-wrap; overflow-wrap: anywhere; margin: 6px 0 16px;
+  font-size: 0.85rem;
+}
+.links { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 0 0 12px; }
+.privacy { color: var(--muted); margin: 0; }
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1>Freshness check: {{ info.model }}</h1>
+  <p class="intro">Each question went to {{ info.model }} twice: once on its own, and once with a Tabstack Research report and its sources added to the prompt. Both prompts included the run date. Compare the answers and judge them yourself.</p>
+  <dl class="meta">
+    <div><dt>Model</dt><dd>{{ info.model }}</dd></div>
+    <div><dt>Endpoint</dt><dd>{{ info.endpoint }}</dd></div>
+    <div><dt>Run date</dt><dd>{{ run_date }}</dd></div>
+    <div><dt>Research mode</dt><dd>{{ info.mode }}</dd></div>
+    <div><dt>Questions</dt><dd>{{ questions | length }}{% if questions | length != info.question_count %} of {{ info.question_count }}{% endif %}</dd></div>
+  </dl>
+  <p class="credits">Tabstack credits: {% if info.credits.actual is not none %}{{ "{:,}".format(info.credits.actual) }} used.{% else %}minimum estimate {{ "{:,}".format(info.credits.minimum_estimate) }} ({{ info.credits.per_action }} per action, {{ info.question_count }} {{ "question" if info.question_count == 1 else "questions" }}). Research can run more than one action per question, and the API does not report actual usage.{% endif %}</p>
+  {% if info.stopped_early %}
+  <p class="banner"><strong>The run stopped early.</strong> {{ info.stopped_early }}</p>
+  {% endif %}
+</header>
+
+{% for q in questions %}
+<section class="card">
+  <div class="card-head">
+    <h2>{{ q.question }}</h2>
+    {% if q.expected %}<p class="expected">Expected answer: <strong>{{ q.expected }}</strong></p>{% endif %}
+  </div>
+  <div class="paths">
+    <div class="path alone">
+      <h3>Model alone</h3>
+      {{ answer_block(q.model_alone) }}
+    </div>
+    <div class="path research">
+      <h3>Model with Research</h3>
+      {% if not q.research.ok %}
+      <p class="failed"><strong>Research failed</strong>{{ q.research.error }}</p>
+      <div class="stats"><span>Research time {{ secs(q.research.seconds) }}</span></div>
+      {% else %}
+      {{ answer_block(q.with_research) }}
+      <div class="sources">
+        <strong>Sources cited by Research</strong>
+        {% if q.research.citations %}
+        <ol>
+          {% for c in q.research.citations %}
+          <li>{% if c.url | is_web_url %}<a href="{{ c.url }}" rel="noopener noreferrer">{{ c.title or c.url }}</a>{% else %}{{ c.title or c.url }}{% endif %}</li>
+          {% endfor %}
+        </ol>
+        {% else %}
+        <div>None.</div>
+        {% endif %}
+      </div>
+      <div class="stats">
+        {% if q.research.pages_analyzed is not none %}<span>{{ q.research.pages_analyzed }} {{ "page" if q.research.pages_analyzed == 1 else "pages" }} analysed</span>{% endif %}
+        <span>Research time {{ secs(q.research.seconds) }}</span>
+      </div>
+      <details>
+        <summary>Research report sent to the model</summary>
+        <div class="report">{{ q.research.report | rich_text }}</div>
+      </details>
+      {% endif %}
+    </div>
+  </div>
+</section>
+{% endfor %}
+
+<footer>
+  <strong>Reproduce this run</strong>
+  <pre>{{ info.command }}</pre>
+  <p class="links">
+    <a href="https://console.tabstack.ai/signup">Make a research call</a>
+    <a href="https://docs.tabstack.ai">Read the docs</a>
+  </p>
+  <p class="privacy">The questions were sent to your model endpoint ({{ info.endpoint }}) and to Tabstack Research, and nowhere else. Generated by freshness-check {{ info.tool_version }}.</p>
+</footer>
+</main>
+</body>
+</html>

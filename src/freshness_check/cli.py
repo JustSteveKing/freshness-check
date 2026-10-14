@@ -13,7 +13,7 @@ from urllib.parse import urlsplit
 
 from freshness_check import __version__
 from freshness_check.model import ModelClient
-from freshness_check.output import json_path_for, write_json
+from freshness_check.output import json_path_for, write_html, write_json
 from freshness_check.pricing import CREDITS_PER_ACTION, minimum_credits
 from freshness_check.questions import Question, QuestionFileError, load_questions
 from freshness_check.research import FatalResearchError, ResearchClient
@@ -192,6 +192,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if run.questions:
         json_path = json_path_for(args.out)
+        write_html(run, args.out)
         write_json(run, json_path)
-        print(f"Wrote {json_path}")
+        print(f"Wrote {args.out} and {json_path}")
     return exit_code
