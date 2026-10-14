@@ -11,10 +11,14 @@ from datetime import date
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from rich.console import Console
+from rich.markup import escape
+
 from freshness_check import __version__
-from freshness_check.model import ModelClient
+from freshness_check.model import FatalModelError, ModelClient
 from freshness_check.output import json_path_for, write_html, write_json
-from freshness_check.pricing import CREDITS_PER_ACTION, minimum_credits
+from freshness_check.pricing import CREDITS_PER_ACTION, cost_notice, minimum_credits
+from freshness_check.progress import RichHooks
 from freshness_check.questions import Question, QuestionFileError, load_questions
 from freshness_check.research import FatalResearchError, ResearchClient
 from freshness_check.runner import Credits, RunInfo, RunResult, run_all
@@ -135,24 +139,42 @@ def reproduce_command(args: argparse.Namespace) -> str:
     return shlex.join(parts)
 
 
+def confirm_cost(console: Console, question_count: int, mode: str, assume_yes: bool) -> bool:
+    console.print(cost_notice(question_count, mode), soft_wrap=True)
+    if assume_yes:
+        return True
+    if not sys.stdin.isatty():
+        console.print("Run again with --yes to confirm when there is no terminal to answer in.")
+        return False
+    try:
+        reply = console.input("Continue? [y/N] ")
+    except EOFError:
+        return False
+    return reply.strip().lower() in ("y", "yes")
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    console = Console(stderr=True, highlight=False)
 
     tabstack_key = os.environ.get("TABSTACK_API_KEY", "").strip()
     if not tabstack_key:
-        print(
-            "Error: TABSTACK_API_KEY is not set. Create a key at "
-            "https://console.tabstack.ai/signup and export it first.",
-            file=sys.stderr,
+        console.print(
+            "[red]Error:[/red] TABSTACK_API_KEY is not set. Create a key at "
+            "https://console.tabstack.ai/signup, then export TABSTACK_API_KEY and run again."
         )
         return 2
 
     try:
         questions = select_questions(args)
     except QuestionFileError as error:
-        print(f"Error: {error}", file=sys.stderr)
+        console.print(f"[red]Error:[/red] {escape(str(error))}")
         return 2
+
+    if not confirm_cost(console, len(questions), args.mode, args.yes):
+        console.print("Nothing was sent.")
+        return 1
 
     model = ModelClient(
         base_url=args.base_url,
@@ -182,17 +204,33 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
     )
 
+    console.print(
+        f"Asking {escape(args.model)} at {escape(run.info.endpoint)}, "
+        f"with Tabstack Research in {args.mode} mode."
+    )
+    hooks = RichHooks(console)
     exit_code = 0
     try:
-        run_all(model, research, questions, today, run)
-    except FatalResearchError as error:
-        print(f"Error: {error}", file=sys.stderr)
+        run_all(model, research, questions, today, run, hooks)
+    except (FatalResearchError, FatalModelError) as error:
+        hooks.stop()
+        console.print(f"\n[red]Error:[/red] {escape(str(error))}")
         run.info.stopped_early = str(error)
         exit_code = 1
+    except KeyboardInterrupt:
+        hooks.stop()
+        console.print("\nStopped.")
+        run.info.stopped_early = "The run was stopped before all questions finished."
+        exit_code = 130
+    finally:
+        hooks.stop()
 
-    if run.questions:
-        json_path = json_path_for(args.out)
-        write_html(run, args.out)
-        write_json(run, json_path)
-        print(f"Wrote {args.out} and {json_path}")
+    if not run.questions:
+        console.print("No questions finished, so no report was written.")
+        return exit_code
+
+    json_path = json_path_for(args.out)
+    write_html(run, args.out)
+    write_json(run, json_path)
+    console.print(f"\nReport: {escape(str(args.out))}\nData:   {escape(str(json_path))}")
     return exit_code

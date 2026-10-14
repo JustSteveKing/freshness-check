@@ -36,6 +36,10 @@ class ModelAnswer:
         return self.error is None
 
 
+class FatalModelError(Exception):
+    """A model endpoint failure that every later call would hit too."""
+
+
 def estimate_tokens(text: str) -> int:
     return math.ceil(len(text) / CHARS_PER_TOKEN)
 
@@ -66,17 +70,14 @@ class ModelClient:
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
             )
+        except (openai.AuthenticationError, openai.NotFoundError) as error:
+            raise FatalModelError(describe_model_error(error, self.model)) from error
+        except openai.APIConnectionError as error:
+            if isinstance(error, openai.APITimeoutError):
+                return self._failed(prompt, error, started, estimate, over_window)
+            raise FatalModelError(describe_model_error(error, self.model)) from error
         except Exception as error:
-            return ModelAnswer(
-                text=None,
-                error=describe_model_error(error, self.model),
-                seconds=time.monotonic() - started,
-                input_chars=len(prompt),
-                input_tokens=estimate,
-                input_tokens_estimated=True,
-                estimated_input_tokens=estimate,
-                over_context_window=over_window,
-            )
+            return self._failed(prompt, error, started, estimate, over_window)
         seconds = time.monotonic() - started
 
         reported = getattr(getattr(response, "usage", None), "prompt_tokens", None)
@@ -102,14 +103,31 @@ class ModelClient:
             over_context_window=over_window,
         )
 
+    def _failed(
+        self, prompt: str, error: Exception, started: float, estimate: int, over_window: bool
+    ) -> ModelAnswer:
+        return ModelAnswer(
+            text=None,
+            error=describe_model_error(error, self.model),
+            seconds=time.monotonic() - started,
+            input_chars=len(prompt),
+            input_tokens=estimate,
+            input_tokens_estimated=True,
+            estimated_input_tokens=estimate,
+            over_context_window=over_window,
+        )
+
 
 def describe_model_error(error: Exception, model: str) -> str:
     if isinstance(error, openai.APITimeoutError):
         return "The model did not respond before the timeout."
     if isinstance(error, openai.APIConnectionError):
-        return "Could not connect to the model endpoint. Check that your runtime is running."
+        return (
+            "Could not connect to the model endpoint. "
+            "Check that your runtime is running and that --base-url is right."
+        )
     if isinstance(error, openai.NotFoundError):
-        return f"The endpoint does not know the model '{model}'. Check the model name."
+        return f"The endpoint does not know the model '{model}'. Check the name your runtime lists."
     if isinstance(error, openai.AuthenticationError):
         return "The model endpoint rejected the API key."
     if isinstance(error, openai.APIStatusError):
