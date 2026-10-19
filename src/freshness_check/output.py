@@ -19,12 +19,16 @@ BOLD_PATTERN = re.compile(r"\*\*(.+?)\*\*")
 CODE_PATTERN = re.compile(r"`([^`\n]+)`")
 TRAILING_PUNCTUATION = ".,;:!?)]}*"
 
-# Em dash and en dash. Model answers, research reports and page titles often
-# use them as punctuation, and the report copy avoids them.
-DASHES = "\u2014\u2013"
-LINE_START_DASH = re.compile(rf"^([ \t]*)[{DASHES}][ \t]*", re.MULTILINE)
-RANGE_DASH = re.compile(r"(?<=\w)\u2013(?=\w)")
-PUNCTUATION_DASH = re.compile(rf"[ \t]*[{DASHES}][ \t]*")
+# Em dashes and en dashes in model answers and page titles. The report copy
+# avoids them, but rewriting them must never change a fact, a link or code.
+EN_DASH = "\u2013"
+EM_DASH = "\u2014"
+# Text that undash leaves exactly as written: links and inline code.
+PROTECTED = re.compile(rf"{URL_PATTERN.pattern}|`[^`\n]+`")
+EM_AT_LINE_START = re.compile(rf"^([ \t]*){EM_DASH}+[ \t]*", re.MULTILINE)
+EM_AFTER_OPENER = re.compile(rf"([(\[{{])[ \t]*{EM_DASH}+[ \t]*")
+EM_BEFORE_CLOSER = re.compile(rf"[ \t]*{EM_DASH}+[ \t]*(?=[)\]}}.,;:!?]|$)", re.MULTILINE)
+EM_BETWEEN_WORDS = re.compile(rf"[ \t]*{EM_DASH}+[ \t]*")
 
 
 def json_path_for(html_path: Path) -> Path:
@@ -55,21 +59,39 @@ def link(match: re.Match[str]) -> str:
     return f'<a href="{url}" rel="noopener noreferrer">{url}</a>{trailing}'
 
 
+def undash_plain(text: str) -> str:
+    # An en dash marks a range or a minus sign, so a hyphen keeps the meaning
+    # ("18 \u2013 22" becomes "18 - 22"). An em dash between words becomes a
+    # comma, and one with nothing to separate is dropped.
+    text = text.replace(EN_DASH, "-")
+    text = EM_AT_LINE_START.sub(r"\1- ", text)
+    text = EM_AFTER_OPENER.sub(r"\1", text)
+    text = EM_BEFORE_CLOSER.sub("", text)
+    return EM_BETWEEN_WORDS.sub(", ", text)
+
+
 def undash(value: str | None) -> str:
-    """Replace em and en dashes: list markers and ranges become hyphens, and
-    dashes used as punctuation become commas."""
-    text = LINE_START_DASH.sub(r"\1- ", value or "")
-    text = RANGE_DASH.sub("-", text)
-    return PUNCTUATION_DASH.sub(", ", text)
+    """Replace em and en dashes outside links and inline code."""
+    # Swap links and code for placeholders so the dash rules see the whole
+    # text (line starts and ends stay where they are) but cannot touch them.
+    kept: list[str] = []
+
+    def hold(match: re.Match[str]) -> str:
+        kept.append(match.group(0))
+        return f"\x00{len(kept) - 1}\x00"
+
+    text = undash_plain(PROTECTED.sub(hold, (value or "").replace("\x00", "")))
+    return re.sub(r"\x00(\d+)\x00", lambda m: kept[int(m.group(1))], text)
 
 
-def rich_text(value: str | None) -> Markup:
+def rich_text(value: str | None, clean_dashes: bool = True) -> Markup:
     """Escape model output, then render **bold**, `code` and bare links.
 
     Answers show with their line breaks kept. Everything else stays plain text,
-    so nothing the model writes can add markup to the report.
+    so nothing the model writes can add markup to the report. Pass
+    clean_dashes=False to show text exactly as written.
     """
-    text = str(escape(undash(value)))
+    text = str(escape(undash(value) if clean_dashes else (value or "")))
     text = CODE_PATTERN.sub(r"<code>\1</code>", text)
     text = BOLD_PATTERN.sub(r"<strong>\1</strong>", text)
     text = URL_PATTERN.sub(link, text)

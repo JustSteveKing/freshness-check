@@ -208,11 +208,31 @@ EM, EN = chr(0x2014), chr(0x2013)
 @pytest.mark.parametrize(
     ("raw", "clean"),
     [
+        # Em dash between words becomes a comma.
         (f"Node.js {EM} Node.js Releases", "Node.js, Node.js Releases"),
         (f"fast{EM}really fast", "fast, really fast"),
+        (f"a{EM}{EM}b", "a, b"),
+        # En dash keeps its meaning as a hyphen, spaced or not.
         (f"every 4{EN}6 months", "every 4-6 months"),
-        (f"Laravel 13.x {EN} The clean stack", "Laravel 13.x, The clean stack"),
+        (f"Node 18 {EN} 22", "Node 18 - 22"),
+        (f"$10{EN}$20", "$10-$20"),
+        (f"10%{EN}20%", "10%-20%"),
+        (f"temp {EN}5C", "temp -5C"),
+        (f"Laravel 13.x {EN} The clean stack", "Laravel 13.x - The clean stack"),
+        # Line-start markers become hyphens.
         (f"Sources:\n{EM} one\n  {EN} two", "Sources:\n- one\n  - two"),
+        # An em dash with nothing to separate is dropped.
+        (f"Releases {EM}", "Releases"),
+        (f"({EM} note)", "(note)"),
+        (f"foo {EM}\nbar", "foo\nbar"),
+        (f"done {EM}.", "done."),
+        # Links and inline code stay exactly as written.
+        (f"See https://x.org/a{EM}b now", f"See https://x.org/a{EM}b now"),
+        (
+            f"https://en.wikipedia.org/wiki/2023{EN}24_season {EM} ok",
+            f"https://en.wikipedia.org/wiki/2023{EN}24_season, ok",
+        ),
+        (f"run `a {EM} b` here", f"run `a {EM} b` here"),
         ("no dashes - here", "no dashes - here"),
     ],
 )
@@ -220,14 +240,36 @@ def test_undash(raw, clean):
     assert undash(raw) == clean
 
 
-def test_third_party_dashes_do_not_reach_the_report():
+def test_answers_and_titles_lose_dashes_but_facts_and_links_survive():
     run = fixed_run()
     first = run.questions[0]
     first.research.citations[0].title = f"Node.js {EM} Node.js Releases"
-    first.model_alone.text = f"Every 4{EN}6 months {EM} roughly."
-    first.research.report = f"Report {EM} with dashes."
+    first.model_alone.text = f"Every 4{EN}6 months {EM} roughly. See https://x.org/2023{EN}24."
     html = render_html(run)
-    assert EM not in html
-    assert EN not in html
     assert "Node.js, Node.js Releases" in html
     assert "Every 4-6 months, roughly." in html
+    assert f'href="https://x.org/2023{EN}24"' in html
+
+
+def test_research_report_panel_shows_text_exactly_as_sent():
+    run = fixed_run()
+    run.questions[0].research.report = f"Supported 3.10 {EN} 3.13 {EM} see notes."
+    html = render_html(run)
+    assert f'<div class="report">Supported 3.10 {EN} 3.13 {EM} see notes.</div>' in html
+
+
+def test_user_question_and_expected_answer_are_not_changed():
+    run = fixed_run()
+    run.questions[0].question = f"Which releases came out 2024 {EN} 2025?"
+    run.questions[0].expected = f"10%{EN}20%"
+    html = render_html(run)
+    assert f"<h2>Which releases came out 2024 {EN} 2025?</h2>" in html
+    assert f"Expected answer: <strong>10%{EN}20%</strong>" in html
+
+
+def test_untitled_citation_shows_its_url_unchanged():
+    run = fixed_run()
+    url = f"https://en.wikipedia.org/wiki/2023{EN}24"
+    run.questions[0].research.citations[1] = Citation(url)
+    html = render_html(run)
+    assert f'<a href="{url}" rel="noopener noreferrer">{url}</a>' in html

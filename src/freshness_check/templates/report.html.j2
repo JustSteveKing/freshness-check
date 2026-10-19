@@ -155,8 +155,8 @@ footer pre {
 {% for q in questions %}
 <section class="card">
   <div class="card-head">
-    <h2>{{ q.question | undash }}</h2>
-    {% if q.expected %}<p class="expected">Expected answer: <strong>{{ q.expected | undash }}</strong></p>{% endif %}
+    <h2>{{ q.question }}</h2>
+    {% if q.expected %}<p class="expected">Expected answer: <strong>{{ q.expected }}</strong></p>{% endif %}
   </div>
   <div class="paths">
     <div class="path alone">
@@ -175,7 +175,8 @@ footer pre {
         {% if q.research.citations %}
         <ol>
           {% for c in q.research.citations %}
-          <li>{% if c.url | is_web_url %}<a href="{{ c.url }}" rel="noopener noreferrer">{{ c.title | undash if c.title else c.url }}</a>{% else %}{{ c.title | undash if c.title else c.url }}{% endif %}</li>
+          {% set label = c.title | undash if c.title else c.url %}
+          <li>{% if c.url | is_web_url %}<a href="{{ c.url }}" rel="noopener noreferrer">{{ label }}</a>{% else %}{{ label }}{% endif %}</li>
           {% endfor %}
         </ol>
         {% else %}
@@ -188,7 +189,7 @@ footer pre {
       </div>
       <details>
         <summary>Research report sent to the model</summary>
-        <div class="report">{{ q.research.report | rich_text }}</div>
+        <div class="report">{{ q.research.report | rich_text(false) }}</div>
       </details>
       {% endif %}
     </div>
