@@ -7,12 +7,13 @@ import threading
 import time
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass, field
-from typing import Any, TypeVar
+from typing import Any, Literal, TypeVar
 
 import httpx
 import tabstack
 
 T = TypeVar("T")
+ResearchMode = Literal["fast", "balanced"]
 
 # Used when a rate limit response has no Retry-After header.
 DEFAULT_RATE_LIMIT_WAIT = 30.0
@@ -99,7 +100,7 @@ class ResearchClient:
         self,
         *,
         api_key: str,
-        mode: str = "fast",
+        mode: ResearchMode = "fast",
         silence_timeout: float = 60.0,
         client: tabstack.Tabstack | None = None,
         sleep: Callable[[float], None] = time.sleep,

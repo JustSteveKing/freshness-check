@@ -72,7 +72,7 @@ class RichHooks(Hooks):
     def __init__(self, console: Console) -> None:
         self.console = console
         self.status: Status | None = None
-        self.research_started = 0.0
+        self.research_start_time = 0.0
 
     def _update(self, text: str) -> None:
         if self.status is not None:
@@ -84,14 +84,15 @@ class RichHooks(Hooks):
         self.status.start()
 
     def step(self, label: str) -> None:
-        if label.startswith("Running Tabstack Research"):
-            self.research_started = time.monotonic()
         self._update(label)
+
+    def research_started(self) -> None:
+        self.research_start_time = time.monotonic()
 
     def research_event(self, event: Any) -> None:
         label = describe_event(event)
         if label:
-            elapsed = time.monotonic() - self.research_started
+            elapsed = time.monotonic() - self.research_start_time
             self._update(f"{label} [dim]({elapsed:.0f}s)[/dim]")
 
     def rate_limited(self, wait: float) -> None:

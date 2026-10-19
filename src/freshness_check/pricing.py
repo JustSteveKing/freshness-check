@@ -13,8 +13,6 @@ CREDITS_PER_ACTION: dict[str, int] = {
     "balanced": 350,
 }
 
-PRICING_URL = "https://tabstack.ai/pricing"
-
 
 def minimum_credits(question_count: int, mode: str) -> int:
     return question_count * CREDITS_PER_ACTION[mode]

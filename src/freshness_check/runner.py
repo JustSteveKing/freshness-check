@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Any
@@ -58,6 +58,8 @@ class Hooks:
 
     def step(self, label: str) -> None: ...
 
+    def research_started(self) -> None: ...
+
     def research_event(self, event: Any) -> None: ...
 
     def rate_limited(self, wait: float) -> None: ...
@@ -97,6 +99,7 @@ def run_question(
     hooks.step("Asking the model alone")
     alone = run_model_alone(model, question, day)
     hooks.step("Running Tabstack Research")
+    hooks.research_started()
     found, with_research = run_with_research(model, research, question, day, hooks)
     return QuestionResult(
         question=question.text,
@@ -114,12 +117,12 @@ def run_all(
     day: date,
     run: RunResult,
     hooks: Hooks | None = None,
-    on_result: Callable[[QuestionResult], None] | None = None,
 ) -> RunResult:
     """Run questions one at a time, appending to run.questions as each finishes.
 
     Questions run sequentially on purpose: rate limits on lower plans are
-    tight. A FatalResearchError propagates with the finished results kept.
+    tight. FatalResearchError and FatalModelError propagate, and the
+    finished results stay in run.questions.
     """
     hooks = hooks or Hooks()
     for index, question in enumerate(questions, start=1):
@@ -127,6 +130,4 @@ def run_all(
         result = run_question(model, research, question, day, hooks)
         run.questions.append(result)
         hooks.question_finished(result)
-        if on_result is not None:
-            on_result(result)
     return run

@@ -68,8 +68,9 @@ Dev (dependency group): `pytest`, `ruff`.
 6. Cost confirmation, rich progress, error message polish, `test_cli.py`.
 7. README, then a copy pass over README, template, terminal strings and comments against the copy rules. Check `uvx --from <local path>` in a clean environment, `ruff check`, `ruff format --check`, `pytest`. Screenshot the report at desktop and phone widths in light and dark mode.
 
-## Open questions for you
+## Decisions
 
-1. **Extra options.** The spec asks for a configurable silence timeout and a model call timeout but lists no flags for them. I plan to add `--research-timeout` (silence, default 60s) and `--model-timeout` (default 300s, since local models on CPU can be slow). I could also add an optional `--context-window N` that warns before sending a prompt above N tokens. OK to add these three?
-2. **Git.** The directory is not a repo yet. I will `git init` on `main` and commit each stage there. No remote, no push. OK?
-3. **README base URLs.** Verifying them means fetching each runtime's docs. I will do that in stage 7.
+1. **Extra options.** Added `--research-timeout` (60s), `--model-timeout` (300s) and `--context-window`.
+2. **Git.** Repository on `main`, one commit per stage, no remote yet.
+3. **README base URLs.** Checked in stage 7. llama.cpp's server now defaults to port 9931, not 8080.
+4. **Dashes in third-party text.** The report replaces em and en dashes in answers and source titles without changing facts, links or code. The question, the expected answer and the research report panel show text exactly as written. The JSON keeps the raw text.
