@@ -13,6 +13,8 @@ import httpx
 import tabstack
 
 T = TypeVar("T")
+# The Research modes this tool offers. The CLI choices and the pricing table
+# both come from here.
 ResearchMode = Literal["fast", "balanced"]
 
 # Used when a rate limit response has no Retry-After header.
@@ -219,8 +221,10 @@ def api_message(error: tabstack.APIStatusError) -> str:
             value = body.get(key)
             if isinstance(value, str):
                 return value
-            if isinstance(value, dict) and isinstance(value.get("message"), str):
-                return value["message"]
+            if isinstance(value, dict):
+                message = value.get("message")
+                if isinstance(message, str):
+                    return message
     return error.message
 
 

@@ -114,6 +114,7 @@ uv sync
 uv run pytest
 uv run ruff check
 uv run ruff format --check
+uv run mypy
 ```
 
 The tests use recorded Research streams and a fake model client. They make no network calls.

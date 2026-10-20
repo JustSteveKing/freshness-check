@@ -9,6 +9,7 @@ import sys
 from collections.abc import Sequence
 from datetime import date
 from pathlib import Path
+from typing import get_args
 from urllib.parse import urlsplit
 
 from rich.console import Console
@@ -20,7 +21,7 @@ from freshness_check.output import json_path_for, write_html, write_json
 from freshness_check.pricing import CREDITS_PER_ACTION, cost_notice, minimum_credits
 from freshness_check.progress import RichHooks
 from freshness_check.questions import Question, QuestionFileError, load_questions
-from freshness_check.research import FatalResearchError, ResearchClient
+from freshness_check.research import FatalResearchError, ResearchClient, ResearchMode
 from freshness_check.runner import Credits, RunInfo, RunResult, run_all
 
 DEFAULT_BASE_URL = "http://localhost:11434/v1"
@@ -67,7 +68,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--mode",
-        choices=("fast", "balanced"),
+        choices=get_args(ResearchMode),
         default="fast",
         help="Tabstack Research mode (default: fast). Balanced needs a paid plan.",
     )
@@ -139,7 +140,9 @@ def reproduce_command(args: argparse.Namespace) -> str:
     return shlex.join(parts)
 
 
-def confirm_cost(console: Console, question_count: int, mode: str, assume_yes: bool) -> bool:
+def confirm_cost(
+    console: Console, question_count: int, mode: ResearchMode, assume_yes: bool
+) -> bool:
     console.print(cost_notice(question_count, mode), soft_wrap=True)
     if assume_yes:
         return True

@@ -15,7 +15,7 @@ Full list of doc/source differences in `NOTES.md`.
 ## Layout
 
 ```
-pyproject.toml            hatchling build, console script, ruff + pytest config
+pyproject.toml            hatchling build, console script, ruff, pytest and mypy config
 LICENSE                   MIT
 README.md
 src/freshness_check/
@@ -27,13 +27,13 @@ src/freshness_check/
   model.py                ModelClient over openai.OpenAI(base_url=...), ModelAnswer
   research.py             ResearchClient, silence timeout, ResearchResult, error mapping
   runner.py               runs both paths per question, builds QuestionResult
-  pricing.py              per-action credit constants (link to pricing page), estimate text
+  pricing.py              per-action credit constants (from the pricing page), estimate text
   progress.py             rich progress display driven by research events
   output.py               JSON writer and HTML renderer (jinja2)
   templates/report.html.j2
 tests/
-  conftest.py             fake OpenAI client, fake research stream
-  fixtures/research_complete.json, research_error.json
+  conftest.py             fake OpenAI client
+  fixtures/research_complete.sse, research_error.sse   recorded-style SSE streams
   test_questions.py
   test_model.py
   test_research.py
@@ -45,17 +45,17 @@ tests/
 ## Dependencies
 
 Runtime: `tabstack`, `openai`, `rich`, `jinja2`. Argument parsing uses stdlib `argparse`.
-Dev (dependency group): `pytest`, `ruff`.
+Dev (dependency group): `pytest`, `ruff`, `mypy` (strict, `src` only).
 `requires-python = ">=3.11"`.
 
 ## Key design points
 
-- **Silence timeout.** A small generic helper, `iter_with_silence_timeout(iterable, seconds)`, consumes the SDK stream on a daemon thread and passes events through a `queue.Queue`. The main thread calls `queue.get(timeout=seconds)`, so the timer resets on every event. On timeout it closes the stream and raises `ResearchTimeout`. A stream that ends with no `complete` or `error` raises `ResearchIncomplete`. Tests drive it with plain Python iterators built from the fixtures (one with a deliberate sleep), so no network.
+- **Silence timeout.** A small generic helper, `iter_with_silence_timeout(iterable, seconds)`, consumes the SDK stream on a daemon thread and passes events through a `queue.Queue`. The main thread calls `queue.get(timeout=seconds)`, so the timer resets on every event. On timeout it closes the stream and raises `SilenceTimeout`. A stream that ends with no `complete` or `error` raises `ResearchError`. Both become a failed Research path for that question. Tests run the real SDK against the SSE fixtures through `httpx.MockTransport` (with deliberate delays for the timeout), so no network.
 - **Data model.** Dataclasses (`Question`, `ModelAnswer`, `ResearchResult`, `QuestionResult`, `RunResult`). JSON comes from `dataclasses.asdict`, and the HTML template reads the same object, so the two outputs cannot drift.
 - **Input tokens.** `usage.prompt_tokens` when present, otherwise `ceil(len(prompt) / 4)` with `input_tokens_estimated: true`, shown as "est." in the report and terminal.
-- **Context window.** The OpenAI-compatible API does not report a model's context window. I record the input size on every path. Where the runtime returns `prompt_tokens` lower than the character estimate by a wide margin, I flag "the runtime may have truncated this prompt" (Ollama does this silently when the prompt exceeds `num_ctx`). See question 1 below.
+- **Context window.** The OpenAI-compatible API does not report a model's context window. I record the input size on every path. Where the runtime returns `prompt_tokens` lower than the character estimate by a wide margin, I flag "the runtime may have truncated this prompt" (Ollama does this silently when the prompt exceeds `num_ctx`). `--context-window` adds a note when a prompt looks larger than the window you give it.
 - **Secrets.** `TABSTACK_API_KEY` and `--api-key` never enter the result objects. The reproduce command is rebuilt from parsed args with `--api-key` dropped. A test renders HTML and JSON with sentinel key values and asserts they are absent.
-- **Errors.** Each path fails on its own. A failure stores a short message on that path, and the other path still runs. Auth errors and a rejected `--mode balanced` stop the run early with a clear message, since every later question would fail the same way.
+- **Errors.** Each path fails on its own. A failure stores a short message on that path, and the other path still runs. Errors every later question would hit too stop the run with a clear message: a rejected Tabstack key or plan (`FatalResearchError`), and an unreachable model endpoint, unknown model or rejected model key (`FatalModelError`). Finished questions stay in the report. If the endpoint fails after Research ran, that question stays too, with the with-research path marked failed.
 - **Endpoint host.** The report shows `host:port` only, parsed from `--base-url`.
 
 ## Build order (commit after each)

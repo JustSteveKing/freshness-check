@@ -72,7 +72,9 @@ class RichHooks(Hooks):
     def __init__(self, console: Console) -> None:
         self.console = console
         self.status: Status | None = None
-        self.research_start_time = 0.0
+        # Set from the first Research event (normally "start"), so time spent
+        # waiting out a rate limit is not counted as research time.
+        self.research_start_time: float | None = None
 
     def _update(self, text: str) -> None:
         if self.status is not None:
@@ -82,17 +84,18 @@ class RichHooks(Hooks):
         self.console.print(f"\n[bold][{index}/{total}][/bold] {escape(question.text)}")
         self.status = self.console.status("Starting")
         self.status.start()
+        self.research_start_time = None
 
     def step(self, label: str) -> None:
         self._update(label)
 
-    def research_started(self) -> None:
-        self.research_start_time = time.monotonic()
-
     def research_event(self, event: Any) -> None:
+        now = time.monotonic()
+        if self.research_start_time is None or getattr(event, "event", None) == "start":
+            self.research_start_time = now
         label = describe_event(event)
         if label:
-            elapsed = time.monotonic() - self.research_start_time
+            elapsed = now - self.research_start_time
             self._update(f"{label} [dim]({elapsed:.0f}s)[/dim]")
 
     def rate_limited(self, wait: float) -> None:

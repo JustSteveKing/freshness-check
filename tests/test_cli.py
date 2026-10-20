@@ -86,7 +86,9 @@ def test_balanced_cost_uses_balanced_price(capsys, tmp_path, calls):
         FatalResearchError(
             "Tabstack refused the request (HTTP 403). Balanced mode needs a paid plan."
         ),
-        FatalModelError("Could not connect to the model endpoint."),
+        FatalModelError(
+            ModelAnswer(None, "Could not connect to the model endpoint.", 0.1, 4, 1, True, 1)
+        ),
     ],
 )
 def test_fatal_error_keeps_finished_questions(monkeypatch, tmp_path, capsys, error):
@@ -156,3 +158,34 @@ def test_research_summary_uses_singular_for_one():
     research = ResearchResult("R", [Citation("https://a.example")], pages_analyzed=1, seconds=8.0)
     hooks.question_finished(QuestionResult("Q?", None, ok_answer(), research, ok_answer()))
     assert "Research: 8.0s, 1 source, 1 page analysed" in console.export_text()
+
+
+def test_research_elapsed_time_starts_at_the_start_event(monkeypatch):
+    """A rate limit wait before the stream opens is not counted."""
+    from rich.console import Console
+
+    import freshness_check.progress as progress
+    from freshness_check.questions import Question
+
+    clock = iter([1000.0, 1005.0, 2000.0, 2003.0])
+    monkeypatch.setattr(progress.time, "monotonic", lambda: next(clock))
+    hooks = progress.RichHooks(Console(file=io.StringIO()))
+    labels: list[str] = []
+    monkeypatch.setattr(hooks, "_update", labels.append)
+
+    hooks.question_started(1, 2, Question("Q?"))
+    hooks.step("Running Tabstack Research")
+    hooks.rate_limited(90)
+    hooks.research_event(event("start"))
+    hooks.research_event(event("writing:start"))
+    assert labels[-2:] == [
+        "Research started [dim](0s)[/dim]",
+        "Research: writing the report [dim](5s)[/dim]",
+    ]
+
+    # The next question times from its own start event.
+    hooks.question_started(2, 2, Question("Q2?"))
+    hooks.research_event(event("start"))
+    hooks.research_event(event("writing:start"))
+    assert labels[-1] == "Research: writing the report [dim](3s)[/dim]"
+    hooks.stop()

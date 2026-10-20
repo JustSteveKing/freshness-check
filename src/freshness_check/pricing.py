@@ -8,17 +8,19 @@ changes.
 
 from __future__ import annotations
 
-CREDITS_PER_ACTION: dict[str, int] = {
+from freshness_check.research import ResearchMode
+
+CREDITS_PER_ACTION: dict[ResearchMode, int] = {
     "fast": 250,
     "balanced": 350,
 }
 
 
-def minimum_credits(question_count: int, mode: str) -> int:
+def minimum_credits(question_count: int, mode: ResearchMode) -> int:
     return question_count * CREDITS_PER_ACTION[mode]
 
 
-def cost_notice(question_count: int, mode: str) -> str:
+def cost_notice(question_count: int, mode: ResearchMode) -> str:
     noun = "question" if question_count == 1 else "questions"
     return (
         f"{question_count} {noun} in {mode} mode. Research bills per action "

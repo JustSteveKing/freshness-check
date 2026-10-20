@@ -37,7 +37,14 @@ class ModelAnswer:
 
 
 class FatalModelError(Exception):
-    """A model endpoint failure that every later call would hit too."""
+    """A model endpoint failure that every later call would hit too.
+
+    Carries the failed answer, so the caller can still record this call.
+    """
+
+    def __init__(self, answer: ModelAnswer) -> None:
+        super().__init__(answer.error)
+        self.answer = answer
 
 
 def estimate_tokens(text: str) -> int:
@@ -71,11 +78,13 @@ class ModelClient:
                 messages=[{"role": "user", "content": prompt}],
             )
         except (openai.AuthenticationError, openai.NotFoundError) as error:
-            raise FatalModelError(describe_model_error(error, self.model)) from error
+            failed = self._failed(prompt, error, started, estimate, over_window)
+            raise FatalModelError(failed) from error
         except openai.APIConnectionError as error:
+            failed = self._failed(prompt, error, started, estimate, over_window)
             if isinstance(error, openai.APITimeoutError):
-                return self._failed(prompt, error, started, estimate, over_window)
-            raise FatalModelError(describe_model_error(error, self.model)) from error
+                return failed
+            raise FatalModelError(failed) from error
         except Exception as error:
             return self._failed(prompt, error, started, estimate, over_window)
         seconds = time.monotonic() - started
@@ -139,8 +148,10 @@ def short_message(error: openai.APIStatusError) -> str:
     body = error.body
     if isinstance(body, dict):
         inner = body.get("error", body)
-        if isinstance(inner, dict) and isinstance(inner.get("message"), str):
-            return inner["message"]
+        if isinstance(inner, dict):
+            message = inner.get("message")
+            if isinstance(message, str):
+                return message
         if isinstance(inner, str):
             return inner
     return error.message

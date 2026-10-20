@@ -1,12 +1,15 @@
 import json
 from datetime import date
 
+import httpx
+import openai
+import pytest
 from conftest import FakeOpenAI, completion
 
 from freshness_check.cli import build_parser, endpoint_host, reproduce_command
-from freshness_check.model import ModelClient
+from freshness_check.model import FatalModelError, ModelClient
 from freshness_check.output import json_path_for, to_json
-from freshness_check.pricing import cost_notice, minimum_credits
+from freshness_check.pricing import CREDITS_PER_ACTION, cost_notice, minimum_credits
 from freshness_check.questions import Question
 from freshness_check.research import Citation, ResearchResult
 from freshness_check.runner import Credits, RunInfo, RunResult, run_all, run_question
@@ -138,3 +141,34 @@ def test_cost_notice_wording():
         "(250 credits per action in fast mode)\n"
         "and may run more than one action per question, so this is a minimum of 2,500 credits."
     )
+
+
+def test_endpoint_dying_after_research_keeps_the_question():
+    """Research is already billed, so its report and the model-alone answer
+    stay in the run even though the run stops."""
+    request = httpx.Request("POST", "http://x/v1/chat/completions")
+    fake = FakeOpenAI(completion("alone", 10), openai.APIConnectionError(request=request))
+    run = make_run()
+
+    with pytest.raises(FatalModelError, match="Could not connect"):
+        run_all(
+            model_with(fake),
+            FakeResearch(found(), found()),
+            [Question("One?"), Question("Two?")],
+            TODAY,
+            run,
+        )
+
+    assert len(run.questions) == 1
+    kept = run.questions[0]
+    assert kept.model_alone.text == "alone"
+    assert kept.research.report.startswith("Python 3.14.0")
+    assert kept.with_research.error.startswith("Could not connect")
+
+
+def test_every_mode_has_a_price():
+    from typing import get_args
+
+    from freshness_check.research import ResearchMode
+
+    assert set(CREDITS_PER_ACTION) == set(get_args(ResearchMode))
